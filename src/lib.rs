@@ -6,13 +6,13 @@
 //!
 //! ```toml
 //! [dependencies]
-//! glwfr = "0.1.0"
+//! glwfr = "0.2.0"
 //! ```
 //!
 //! ## Example
 //!
 //! ```rust
-//! use glwfr::{Window, ShaderProgram, Vao, BufferObject, VertexAttribute};
+//! use glwfr::graphics::{window::Window, gl_wrapper::*};
 //! use glwfr::gl;
 //! use glwfr::cgmath::{Matrix4, Deg, Vector3, Point3, perspective};
 //!
