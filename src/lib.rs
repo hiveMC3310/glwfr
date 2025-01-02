@@ -6,7 +6,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! glwfr = "0.2.0"
+//! glwfr = "0.2.1"
 //! ```
 //!
 //! ## Example
