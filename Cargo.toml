@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["HiveMC <HiveMC3310@yandex.ru>"]
 description = "Make graphics with OpenGL."
+repository = "https://github.com/hiveMC3310/glwfr"
 license = "MIT"
 keywords = ["opengl", "graphics", "glfw"]
 categories = ["graphics"]
