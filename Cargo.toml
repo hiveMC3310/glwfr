@@ -1,0 +1,18 @@
+[package]
+name = "glwfr"
+version = "0.1.0"
+edition = "2021"
+authors = ["HiveMC <HiveMC3310@yandex.ru>"]
+description = "Make graphics with OpenGL."
+license = "MIT"
+keywords = ["opengl", "graphics", "glfw"]
+categories = ["graphics"]
+
+[dependencies]
+cgmath = "0.18.0"
+env_logger = "0.11.6"
+gl = "0.14.0"
+glfw = "0.45.0"
+log = "0.4.22"
+thiserror = "2.0.9"
+image = "0.24"
