@@ -24,7 +24,7 @@
 //!
 //!     // Main loop
 //!     while !window.should_close() {
-//!         // Очищаем экран
+//!         // Clear the screen
 //!         window.clear(0.0, 0.0, 0.0, 1.0);
 //!
 //!         // Update window
@@ -37,4 +37,5 @@ pub extern crate cgmath;
 pub extern crate gl;
 pub mod custom_errors;
 pub mod graphics;
+pub mod input;
 pub mod logger;

@@ -1,3 +1,5 @@
+use crate::custom_errors::Errors;
+use crate::input;
 use glfw::{Action, Context, Key, WindowEvent};
 use std::sync::mpsc::Receiver;
 
@@ -8,11 +10,9 @@ pub struct Window {
 }
 
 impl Window {
-    /// Create a new window with the given dimensions and title.
-    ///
-    /// # Errors
-    ///
-    /// This function will return an error if GLFW fails to initialize or if the window cannot be created.
+    /// Create a new window with the given width and height and title, and enable polling
+    /// for the given window events. If the window cannot be created, returns an error of
+    /// type `Errors::WindowCreationError`.
     ///
     /// # Arguments
     ///
@@ -22,16 +22,23 @@ impl Window {
     ///
     /// # Returns
     ///
-    /// A `Result` containing a `Window` instance if successful, or an error string otherwise.
-    pub fn new(width: u32, height: u32, title: &str) -> Result<Self, String> {
-        let glfw = glfw::init(glfw::FAIL_ON_ERRORS).map_err(|e| e.to_string())?;
+    /// A `Result` containing a `Window` instance if successful, or an error of type
+    /// `Errors::WindowCreationError` otherwise.
+    pub fn new(width: u32, height: u32, title: &str) -> Result<Self, Errors> {
+        let glfw = glfw::init(glfw::FAIL_ON_ERRORS)
+            .map_err(|e| Errors::GlfwInitializationError(e.to_string()))?;
 
         let (mut window, events) = glfw
             .create_window(width, height, title, glfw::WindowMode::Windowed)
-            .ok_or("Failed to create GLFW window!")?;
+            .ok_or_else(|| {
+                Errors::WindowCreationError("Failed to create GLFW window".to_string())
+            })?;
 
         window.set_framebuffer_size_polling(true);
         window.set_key_polling(true);
+        window.set_mouse_button_polling(true);
+        window.set_cursor_pos_polling(true);
+        window.set_scroll_polling(true);
 
         Ok(Self {
             glfw,
@@ -113,9 +120,15 @@ impl Window {
 
     /// Process window events and update the window state accordingly.
     ///
-    /// This function should be called every frame to keep the window responsive.
+    /// This function will handle the following events:
+    ///
+    /// * `FramebufferSize`: Update the OpenGL viewport to match the new window dimensions.
+    /// * `Key` with the escape key: Mark the window as needing to close.
+    ///
+    /// This function also calls `input::input::process_event` to allow for input to be handled by the user.
     fn process_events(&mut self) {
         for (_, event) in glfw::flush_messages(&self.events) {
+            input::input::process_event(&event);
             match event {
                 glfw::WindowEvent::FramebufferSize(width, height) => {
                     // Make sure the viewport matches the new window dimensions.

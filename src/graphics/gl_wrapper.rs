@@ -1,16 +1,12 @@
+use crate::custom_errors::Errors;
+use cgmath::*;
+use gl::types::*;
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::fs::File;
-use std::mem;
-
 use std::io::Read;
-
+use std::mem;
 use std::os::raw::*;
-use std::ptr;
-
-use gl::types::*;
-
-use cgmath::*;
 
 pub struct Vao {
     id: gl::types::GLuint,
@@ -238,151 +234,230 @@ pub struct ShaderProgram {
 
 #[allow(temporary_cstring_as_ptr)]
 impl ShaderProgram {
-    /// Construct a new `ShaderProgram` from the given vertex shader and fragment shader paths.
+    /// Compile two shaders and link them into a shader program.
     ///
     /// # Errors
     ///
-    /// This function will panic if the shader source files cannot be read.
-    ///
-    /// # OpenGL Functions
-    ///
-    /// This function is a wrapper around `glCreateShader`, `glShaderSource`, `glCompileShader`, `glCreateProgram`, `glAttachShader`, `glLinkProgram`, and `glDeleteShader`.
+    /// This function will return an error if the shaders cannot be compiled or linked.
     ///
     /// # Arguments
     ///
     /// * `vertex_shader_path` - The path to the vertex shader source file.
     /// * `fragment_shader_path` - The path to the fragment shader source file.
-    pub fn new(vertex_shader_path: &str, fragment_shader_path: &str) -> ShaderProgram {
-        let mut vertex_shader_file = File::open(vertex_shader_path)
-            .unwrap_or_else(|_| panic!("Failed to open {}", vertex_shader_path));
-        let mut fragment_shader_file = File::open(fragment_shader_path)
-            .unwrap_or_else(|_| panic!("Failed to open {}", fragment_shader_path));
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing a `ShaderProgram` instance if successful, or an error of type
+    /// `Errors::ShaderCompilationError` or `Errors::ShaderLinkError` otherwise.
+    pub fn new(vertex_shader_path: &str, fragment_shader_path: &str) -> Result<Self, Errors> {
+        let vertex_shader = Self::compile_shader(vertex_shader_path, gl::VERTEX_SHADER)?;
+        let fragment_shader = Self::compile_shader(fragment_shader_path, gl::FRAGMENT_SHADER)?;
 
-        let mut vertex_shader_source = String::new();
-        let mut fragment_shader_source = String::new();
-
-        vertex_shader_file
-            .read_to_string(&mut vertex_shader_source)
-            .expect("Failed to read vertex shader");
-
-        fragment_shader_file
-            .read_to_string(&mut fragment_shader_source)
-            .expect("Failed to read fragment shader");
-
+        let program_handle = unsafe { gl::CreateProgram() };
         unsafe {
-            let vertex_shader = gl::CreateShader(gl::VERTEX_SHADER);
-            let c_str_vert = CString::new(vertex_shader_source.as_bytes()).unwrap();
-            gl::ShaderSource(vertex_shader, 1, &c_str_vert.as_ptr(), ptr::null());
-            gl::CompileShader(vertex_shader);
-
-            let fragment_shader = gl::CreateShader(gl::FRAGMENT_SHADER);
-            let c_str_frag = CString::new(fragment_shader_source.as_bytes()).unwrap();
-            gl::ShaderSource(fragment_shader, 1, &c_str_frag.as_ptr(), ptr::null());
-            gl::CompileShader(fragment_shader);
-
-            let program_handle = gl::CreateProgram();
             gl::AttachShader(program_handle, vertex_shader);
             gl::AttachShader(program_handle, fragment_shader);
             gl::LinkProgram(program_handle);
             gl::DeleteShader(vertex_shader);
             gl::DeleteShader(fragment_shader);
-
-            ShaderProgram {
-                program_handle,
-                uniform_ids: HashMap::new(),
-            }
         }
+
+        Ok(Self {
+            program_handle,
+            uniform_ids: HashMap::new(), // Инициализируем пустой HashMap
+        })
     }
 
-    /// Bind this shader program to the current OpenGL context, making it the active program.
+    /// Compile a shader from a file.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the shader source file cannot be read or if the shader
+    /// cannot be compiled.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The path to the shader source file.
+    /// * `shader_type` - The type of shader to compile (e.g. `gl::VERTEX_SHADER`).
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing the OpenGL shader handle if successful, or an error of type
+    /// `Errors::ShaderCompilationError` otherwise.
+    fn compile_shader(path: &str, shader_type: GLenum) -> Result<GLuint, Errors> {
+        let mut shader_file = File::open(path).map_err(|e| Errors::FileLoadError(e.to_string()))?;
+        let mut shader_source = String::new();
+        shader_file
+            .read_to_string(&mut shader_source)
+            .map_err(|e| Errors::FileLoadError(e.to_string()))?;
+
+        let shader = unsafe { gl::CreateShader(shader_type) };
+        let c_str = CString::new(shader_source.as_bytes())
+            .map_err(|e| Errors::ShaderCompilationError(e.to_string()))?;
+
+        unsafe {
+            gl::ShaderSource(shader, 1, &c_str.as_ptr(), std::ptr::null());
+            gl::CompileShader(shader);
+        }
+
+        let mut success = 0;
+        unsafe {
+            gl::GetShaderiv(shader, gl::COMPILE_STATUS, &mut success);
+        }
+        if success == 0 {
+            let mut log_len = 0;
+            unsafe {
+                gl::GetShaderiv(shader, gl::INFO_LOG_LENGTH, &mut log_len);
+            }
+            let mut log = vec![0; log_len as usize];
+            unsafe {
+                gl::GetShaderInfoLog(
+                    shader,
+                    log_len,
+                    std::ptr::null_mut(),
+                    log.as_mut_ptr() as *mut i8,
+                );
+            }
+            return Err(Errors::ShaderCompilationError(
+                String::from_utf8_lossy(&log).to_string(),
+            ));
+        }
+
+        Ok(shader)
+    }
+
+    /// Bind the shader program to the current OpenGL context.
     ///
     /// # OpenGL Functions
     ///
     /// This function is a wrapper around `glUseProgram(program_handle)`.
-    /// It binds the shader program to the current OpenGL context, making it the active program.
+    /// It binds the shader program to the current OpenGL context.
     pub fn bind(&self) {
         unsafe {
             gl::UseProgram(self.program_handle);
         }
     }
 
-    /// Unbind any shader program from the current OpenGL context, making no program active.
+    /// Unbind any shader program from the current OpenGL context, making no shader program active.
     ///
     /// # OpenGL Functions
     ///
     /// This function is a wrapper around `glUseProgram(0)`.
-    /// It unbinds any shader program from the current OpenGL context, making no program active.
+    /// It unbinds any shader program from the current OpenGL context, making no shader program active.
     pub fn unbind() {
         unsafe {
             gl::UseProgram(0);
         }
     }
 
-    /// Create a new uniform in the shader program with the given name and store it in the internal map of uniforms.
+    /// Retrieve the location of a uniform variable within the shader program.
     ///
-    /// # Panics
-    ///
-    /// This function will panic if the uniform with the given name cannot be found in the shader program.
-    ///
-    /// # OpenGL Functions
-    ///
-    /// This function is a wrapper around `glGetUniformLocation(program_handle, uniform_name)`.
-    pub fn create_uniform(&mut self, uniform_name: &str) {
-        let uniform_location = unsafe {
-            gl::GetUniformLocation(
-                self.program_handle,
-                CString::new(uniform_name).unwrap().as_ptr(),
-            )
-        };
-        if uniform_location < 0 {
-            panic!("Cannot locate uniform: {}", uniform_name);
-        } else {
-            self.uniform_ids
-                .insert(uniform_name.to_string(), uniform_location);
-        }
-    }
-
-    /// Set the value of a uniform variable in the shader program to the given matrix.
-    ///
-    /// # OpenGL Functions
-    ///
-    /// This function is a wrapper around `glUniformMatrix4fv(uniform_location, 1, gl::FALSE, matrix.as_ptr())`.
+    /// This function first checks if the uniform location is cached in `uniform_ids`.
+    /// If the location is not cached, it queries OpenGL for the location of the uniform
+    /// variable with the given `name` and caches the result.
     ///
     /// # Arguments
     ///
-    /// * `uniform_name` - The name of the uniform variable to set.
-    /// * `matrix` - The matrix value to set the uniform to.
-    pub fn set_matrix4fv_uniform(&self, uniform_name: &str, matrix: &cgmath::Matrix4<f32>) {
-        unsafe {
-            gl::UniformMatrix4fv(
-                self.uniform_ids[uniform_name],
-                1,
-                gl::FALSE,
-                matrix.as_ptr(),
-            )
+    /// * `name` - The name of the uniform variable whose location is to be retrieved.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing the location of the uniform variable as a `GLint` if successful,
+    /// or an error of type `Errors::OpenGlError` if the uniform variable is not found or if
+    /// there is an error converting the name to a `CString`.
+
+    pub fn get_uniform_location(&mut self, name: &str) -> Result<GLint, Errors> {
+        if let Some(&location) = self.uniform_ids.get(name) {
+            Ok(location)
+        } else {
+            let c_name = CString::new(name).map_err(|e| Errors::OpenGlError(e.to_string()))?;
+            let location = unsafe { gl::GetUniformLocation(self.program_handle, c_name.as_ptr()) };
+            if location < 0 {
+                Err(Errors::OpenGlError(format!("Uniform '{}' not found", name)))
+            } else {
+                self.uniform_ids.insert(name.to_string(), location);
+                Ok(location)
+            }
         }
     }
 
-    /// Set the value of a uniform variable in the shader program to the given 3 floats.
+    /// Set the value of a uniform variable of type `f32`.
     ///
     /// # OpenGL Functions
     ///
-    /// This function is a wrapper around `glUniform3f(uniform_location, x, y, z)`.
+    /// This function is a wrapper around `glUniform1f(location, value)`.
+    /// It sets the value of a uniform variable of type `f32`.
     ///
     /// # Arguments
     ///
     /// * `name` - The name of the uniform variable to set.
-    /// * `x` - The x component of the value to set the uniform to.
-    /// * `y` - The y component of the value to set the uniform to.
-    /// * `z` - The z component of the value to set the uniform to.
-    pub fn set_uniform_3f(&self, name: &str, x: f32, y: f32, z: f32) {
-        if let Some(&location) = self.uniform_ids.get(name) {
-            unsafe {
-                gl::Uniform3f(location, x, y, z);
-            }
-        } else {
-            eprintln!("Uniform '{}' not found! Did you call create_uniform?", name);
+    /// * `value` - The value to set the uniform variable to.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing a value of type `()` if successful, or an error of type
+    /// `Errors::OpenGlError` if there is an error setting the uniform variable.
+    pub fn set_uniform_1f(&mut self, name: &str, value: f32) -> Result<(), Errors> {
+        let location = self.get_uniform_location(name)?;
+        unsafe {
+            gl::Uniform1f(location, value);
         }
+        Ok(())
+    }
+
+    /// Set the value of a uniform variable of type `vec3` (three f32 components).
+    ///
+    /// # OpenGL Functions
+    ///
+    /// This function is a wrapper around `glUniform3f(location, x, y, z)`.
+    /// It sets the value of a uniform variable of type `vec3`.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The name of the uniform variable to set.
+    /// * `x` - The x component of the vector.
+    /// * `y` - The y component of the vector.
+    /// * `z` - The z component of the vector.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing a value of type `()` if successful, or an error of type
+    /// `Errors::OpenGlError` if there is an error setting the uniform variable.
+
+    pub fn set_uniform_3f(&mut self, name: &str, x: f32, y: f32, z: f32) -> Result<(), Errors> {
+        let location = self.get_uniform_location(name)?;
+        unsafe {
+            gl::Uniform3f(location, x, y, z);
+        }
+        Ok(())
+    }
+
+    /// Set the value of a uniform variable of type `cgmath::Matrix4<f32>`.
+    ///
+    /// # OpenGL Functions
+    ///
+    /// This function is a wrapper around `glUniformMatrix4fv(location, 1, transpose, matrix.as_ptr())`.
+    /// It sets the value of a uniform variable of type `cgmath::Matrix4<f32>`.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The name of the uniform variable to set.
+    /// * `matrix` - The value to set the uniform variable to.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing a value of type `()` if successful, or an error of type
+    /// `Errors::OpenGlError` if there is an error setting the uniform variable.
+    pub fn set_uniform_matrix4fv(
+        &mut self,
+        name: &str,
+        matrix: &cgmath::Matrix4<f32>,
+    ) -> Result<(), Errors> {
+        let location = self.get_uniform_location(name)?;
+        unsafe {
+            gl::UniformMatrix4fv(location, 1, gl::FALSE, matrix.as_ptr());
+        }
+        Ok(())
     }
 }
 

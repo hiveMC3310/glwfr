@@ -1,4 +1,6 @@
+use crate::custom_errors::Errors;
 use gl::types::*;
+use image::ImageError;
 use std::path::Path;
 
 pub struct Texture {
@@ -47,26 +49,23 @@ impl Texture {
         }
     }
 
-    /// Load a texture from a file into the texture object.
+    /// Load the texture from the given file path.
     ///
     /// # Errors
     ///
-    /// This function will return an error if the image cannot be opened or decoded.
+    /// This function will return an error if the image cannot be loaded from the file.
     ///
     /// # OpenGL Functions
     ///
-    /// This function is a wrapper around `glTexImage2D(GL_TEXTURE_2D, 0, gl::RGBA, width, height, 0, gl::RGBA, gl::UNSIGNED_BYTE, img.as_ptr() as *const _)`.
-    /// It loads a texture from a file into the texture object.
+    /// This function is a wrapper around `glTexImage2D` and `glGenerateMipmap`.
+    /// It loads the texture from the given file path and applies the texture to the current OpenGL texture unit.
     ///
     /// # Arguments
     ///
-    /// * `path` - The path to the image file to load.
-    ///
-    /// # Returns
-    ///
-    /// A `Result` containing a unit value if successful, or an error string otherwise.
-    pub fn load_from_file<P: AsRef<Path>>(&self, path: P) -> Result<(), String> {
-        let img = image::open(path).map_err(|e| e.to_string())?;
+    /// * `path` - The path to the file to load the texture from.
+    pub fn load_from_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Errors> {
+        let img =
+            image::open(path).map_err(|e: ImageError| Errors::TextureLoadError(e.to_string()))?;
         let img = img.to_rgba8();
 
         let (width, height) = img.dimensions();
