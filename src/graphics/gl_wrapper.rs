@@ -1,3 +1,27 @@
+//! # GL Wrapper Module
+//!
+//! This module provides wrappers for OpenGL objects such as VAO, VBO, EBO, and shader programs.
+//!
+//! ## Usage
+//!
+//! ```rust
+//! use glwfr::graphics::gl_wrapper::{Vao, BufferObject, ShaderProgram};
+//!
+//! fn main() -> Result<(), glwfr::custom_errors::Errors> {
+//!     let vao = Vao::new();
+//!     vao.bind();
+//!
+//!     let vbo = BufferObject::new(gl::ARRAY_BUFFER, gl::STATIC_DRAW);
+//!     vbo.bind();
+//!     vbo.store_f32_data(&[0.0, 0.0, 1.0, 1.0]);
+//!
+//!     let shader_program = ShaderProgram::new("vertex.glsl", "fragment.glsl")?;
+//!     shader_program.bind();
+//!
+//!     Ok(())
+//! }
+//! ```
+
 use crate::custom_errors::Errors;
 use cgmath::*;
 use gl::types::*;
@@ -13,19 +37,29 @@ pub struct Vao {
 }
 
 impl Vao {
-    /// Create a new Vertex Array Object (VAO).
+    /// Create a new vertex array object (VAO) and return a `Vao` instance wrapping it.
     ///
     /// # Returns
     ///
-    /// A `Vao` instance with a generated OpenGL vertex array ID.
+    /// A `Result` containing a `Vao` instance if successful, or an error of type
+    /// `Errors::OpenGlError` if there is an error generating the VAO.
+    ///
+    /// # Errors
+    ///
+    /// Returns an `Errors::OpenGlError` if the VAO cannot be generated.
 
-    pub fn new() -> Vao {
+    pub fn new() -> Result<Self, Errors> {
         let mut id = 0;
         unsafe {
             gl::GenVertexArrays(1, &mut id);
         }
-
-        Vao { id }
+        if id == 0 {
+            return Err(Errors::OpenGlError(
+                "VAO creation failed".to_string(),
+                gl::INVALID_OPERATION,
+            ));
+        }
+        Ok(Self { id })
     }
 
     /// Bind the Vertex Array Object (VAO).
@@ -61,18 +95,34 @@ pub struct BufferObject {
 }
 
 impl BufferObject {
-    /// Create a new BufferObject with the given type and usage.
+    /// Generate a new buffer object (VBO, IBO, etc.) of the given type with the given usage.
+    ///
+    /// # Arguments
+    ///
+    /// * `r#type` - The type of buffer object to generate. For example, `gl::ARRAY_BUFFER` or `gl::ELEMENT_ARRAY_BUFFER`.
+    /// * `usage` - The usage of the buffer object. For example, `gl::STATIC_DRAW` or `gl::DYNAMIC_DRAW`.
     ///
     /// # Returns
     ///
-    /// A `BufferObject` instance with a generated OpenGL buffer ID.
-    pub fn new(r#type: gl::types::GLenum, usage: gl::types::GLenum) -> BufferObject {
+    /// A `Result` containing a `BufferObject` instance if successful, or an error of type
+    /// `Errors::OpenGlError` otherwise.
+    ///
+    /// # OpenGL Functions
+    ///
+    /// This function is a wrapper around `glGenBuffers(1, &mut id)` and `glBindBuffer(r#type, id)`.
+    /// It generates a new buffer object of the given type with the given usage.
+    pub fn new(r#type: GLenum, usage: GLenum) -> Result<Self, Errors> {
         let mut id = 0;
         unsafe {
             gl::GenBuffers(1, &mut id);
         }
-
-        BufferObject { id, r#type, usage }
+        if id == 0 {
+            return Err(Errors::OpenGlError(
+                "Failed to generate buffer".to_string(),
+                gl::INVALID_OPERATION,
+            ));
+        }
+        Ok(Self { id, r#type, usage })
     }
 
     /// Bind the buffer object to the given OpenGL buffer binding point.
@@ -249,9 +299,9 @@ impl ShaderProgram {
     ///
     /// A `Result` containing a `ShaderProgram` instance if successful, or an error of type
     /// `Errors::ShaderCompilationError` or `Errors::ShaderLinkError` otherwise.
-    pub fn new(vertex_shader_path: &str, fragment_shader_path: &str) -> Result<Self, Errors> {
-        let vertex_shader = Self::compile_shader(vertex_shader_path, gl::VERTEX_SHADER)?;
-        let fragment_shader = Self::compile_shader(fragment_shader_path, gl::FRAGMENT_SHADER)?;
+    pub fn new(vertex_path: &str, fragment_path: &str) -> Result<Self, Errors> {
+        let vertex_shader = Self::compile_shader(vertex_path, gl::VERTEX_SHADER)?;
+        let fragment_shader = Self::compile_shader(fragment_path, gl::FRAGMENT_SHADER)?;
 
         let program_handle = unsafe { gl::CreateProgram() };
         unsafe {
@@ -262,9 +312,32 @@ impl ShaderProgram {
             gl::DeleteShader(fragment_shader);
         }
 
+        let mut success = 0;
+        unsafe {
+            gl::GetProgramiv(program_handle, gl::LINK_STATUS, &mut success);
+        }
+        if success == 0 {
+            let mut log_len = 0;
+            unsafe {
+                gl::GetProgramiv(program_handle, gl::INFO_LOG_LENGTH, &mut log_len);
+            }
+            let mut log = vec![0; log_len as usize];
+            unsafe {
+                gl::GetProgramInfoLog(
+                    program_handle,
+                    log_len,
+                    std::ptr::null_mut(),
+                    log.as_mut_ptr() as *mut i8,
+                );
+            }
+            return Err(Errors::ShaderLinkError(
+                String::from_utf8_lossy(&log).to_string(),
+            ));
+        }
+
         Ok(Self {
             program_handle,
-            uniform_ids: HashMap::new(), // Инициализируем пустой HashMap
+            uniform_ids: HashMap::new(),
         })
     }
 
@@ -292,8 +365,9 @@ impl ShaderProgram {
             .map_err(|e| Errors::FileLoadError(e.to_string()))?;
 
         let shader = unsafe { gl::CreateShader(shader_type) };
-        let c_str = CString::new(shader_source.as_bytes())
-            .map_err(|e| Errors::ShaderCompilationError(e.to_string()))?;
+        let c_str = CString::new(shader_source.as_bytes()).map_err(|e| {
+            Errors::ShaderCompilationError("Failed to create CString".to_string(), e.to_string())
+        })?;
 
         unsafe {
             gl::ShaderSource(shader, 1, &c_str.as_ptr(), std::ptr::null());
@@ -319,6 +393,7 @@ impl ShaderProgram {
                 );
             }
             return Err(Errors::ShaderCompilationError(
+                "Shader compilation failed".to_string(),
                 String::from_utf8_lossy(&log).to_string(),
             ));
         }
@@ -370,10 +445,14 @@ impl ShaderProgram {
         if let Some(&location) = self.uniform_ids.get(name) {
             Ok(location)
         } else {
-            let c_name = CString::new(name).map_err(|e| Errors::OpenGlError(e.to_string()))?;
+            let c_name = CString::new(name)
+                .map_err(|e| Errors::OpenGlError(e.to_string(), gl::INVALID_VALUE))?;
             let location = unsafe { gl::GetUniformLocation(self.program_handle, c_name.as_ptr()) };
             if location < 0 {
-                Err(Errors::OpenGlError(format!("Uniform '{}' not found", name)))
+                Err(Errors::OpenGlError(
+                    format!("Uniform '{}' not found", name,),
+                    gl::UNIFORM,
+                ))
             } else {
                 self.uniform_ids.insert(name.to_string(), location);
                 Ok(location)
@@ -466,14 +545,29 @@ pub struct Ebo {
 }
 
 impl Ebo {
-    /// Create a new Element Buffer Object (EBO) with a generated OpenGL buffer ID.
-    pub fn new() -> Ebo {
+    /// Generate a new Element Buffer Object (EBO) and create an `Ebo` instance wrapping it.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing an `Ebo` instance if successful, or an error of type
+    /// `Errors::OpenGlError` if the EBO cannot be generated.
+    ///
+    /// # Errors
+    ///
+    /// Returns an `Errors::OpenGlError` if the EBO cannot be generated.
+
+    pub fn new() -> Result<Self, Errors> {
         let mut id = 0;
         unsafe {
             gl::GenBuffers(1, &mut id);
         }
-
-        Ebo { id }
+        if id == 0 {
+            return Err(Errors::OpenGlError(
+                "Failed to generate EBO".to_string(),
+                gl::INVALID_OPERATION,
+            ));
+        }
+        Ok(Self { id })
     }
 
     /// Bind the Element Buffer Object (EBO) to the current OpenGL context, making it the active EBO.

@@ -1,3 +1,25 @@
+//! # Window Module
+//!
+//! This module provides a wrapper for creating and managing a GLFW window with an OpenGL context.
+//!
+//! ## Usage
+//!
+//! ```rust
+//! use glwfr::graphics::window::Window;
+//!
+//! fn main() -> Result<(), glwfr::custom_errors::Errors> {
+//!     let mut window = Window::new(800, 600, "My Window")?;
+//!     window.init_gl();
+//!     window.enable_depth_test();
+//!
+//!     while !window.should_close() {
+//!         window.clear(0.0, 0.0, 0.0, 1.0);
+//!         window.update();
+//!     }
+//!     Ok(())
+//! }
+//! ```
+
 use crate::custom_errors::Errors;
 use crate::input;
 use glfw::{Action, Context, Key, WindowEvent};
@@ -47,14 +69,23 @@ impl Window {
         })
     }
 
-    /// Initialize the OpenGL context for this window.
+    /// Initialize the OpenGL context for the window.
     ///
-    /// # OpenGL Functions
+    /// This function sets the current context to the window's OpenGL context
+    /// and loads the OpenGL function pointers using the `gl` crate.
     ///
-    /// This function makes the window's OpenGL context current and loads the OpenGL function pointers.
-    pub fn init_gl(&mut self) {
+    /// # Errors
+    ///
+    /// This function will return an error if there are any OpenGL errors during
+    /// the initialization process.
+
+    pub fn init_gl(&mut self) -> Result<(), Errors> {
         self.window_handle.make_current();
         gl::load_with(|s| self.window_handle.get_proc_address(s) as *const _);
+
+        // Check for OpenGL errors
+        crate::custom_errors::check_opengl_error()?;
+        Ok(())
     }
 
     /// Check if the window should close.
@@ -125,10 +156,10 @@ impl Window {
     /// * `FramebufferSize`: Update the OpenGL viewport to match the new window dimensions.
     /// * `Key` with the escape key: Mark the window as needing to close.
     ///
-    /// This function also calls `input::input::process_event` to allow for input to be handled by the user.
+    /// This function also calls `input::process_event` to allow for input to be handled by the user.
     fn process_events(&mut self) {
         for (_, event) in glfw::flush_messages(&self.events) {
-            input::input::process_event(&event);
+            input::process_event(&event);
             match event {
                 glfw::WindowEvent::FramebufferSize(width, height) => {
                     // Make sure the viewport matches the new window dimensions.

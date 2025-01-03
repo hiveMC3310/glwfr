@@ -18,5 +18,5 @@ Add `glwfr` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-glwfr = "0.2.1"
+glwfr = "0.3.0"
 ```
