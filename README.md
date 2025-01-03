@@ -7,11 +7,10 @@
 
 ## Features
 
-- Upgrade Errors
-- Scene
-- Scene Object
-- Camera
-- Light
+- Some little upgrade Scene
+- Some little upgrade SceneObject
+- Some little upgrade Camera
+- Some little upgrade Light
 
 ## Usage
 
@@ -19,5 +18,5 @@ Add `glwfr` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-glwfr = "0.3.1"
+glwfr = "0.3.2"
 ```

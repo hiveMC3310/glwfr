@@ -8,10 +8,10 @@
 //! use glwfr::graphics::gl_wrapper::{Vao, BufferObject, ShaderProgram};
 //!
 //! fn main() -> Result<(), glwfr::custom_errors::Errors> {
-//!     let vao = Vao::new();
+//!     let vao = Vao::new()?;
 //!     vao.bind();
 //!
-//!     let vbo = BufferObject::new(gl::ARRAY_BUFFER, gl::STATIC_DRAW);
+//!     let vbo = BufferObject::new(gl::ARRAY_BUFFER, gl::STATIC_DRAW)?;
 //!     vbo.bind();
 //!     vbo.store_f32_data(&[0.0, 0.0, 1.0, 1.0]);
 //!

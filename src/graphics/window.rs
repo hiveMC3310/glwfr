@@ -9,7 +9,7 @@
 //!
 //! fn main() -> Result<(), glwfr::custom_errors::Errors> {
 //!     let mut window = Window::new(800, 600, "My Window")?;
-//!     window.init_gl();
+//!     window.init_gl()?;
 //!     window.enable_depth_test();
 //!
 //!     while !window.should_close() {

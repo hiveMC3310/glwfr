@@ -5,68 +5,58 @@
 //! ## Usage
 //!
 //! ```rust
-//! use glwfr::scene::camera::{Camera, CameraProjection};
-//! use glwfrcgmath::{Deg, Vector3};
+//! use glwfr::cgmath::{Deg, Vector3};
+//! use glwfr::camera::{Camera, CameraProjection};
 //!
 //! fn main() {
-//!     // Create a perspective camera
-//!     let camera = Camera {
-//!         position: Vector3::new(0.0, 0.0, 5.0),
-//!         target: Vector3::new(0.0, 0.0, 0.0),
-//!         up: Vector3::new(0.0, 1.0, 0.0),
-//!         projection: CameraProjection::Perspective {
+//!     // Create a camera with perspective projection
+//!     let mut camera = Camera::new(
+//!         Vector3::new(0.0, 0.0, 5.0), // Position
+//!         Vector3::new(0.0, 0.0, 0.0), // Target
+//!         Vector3::new(0.0, 1.0, 0.0), // Up direction
+//!         CameraProjection::Perspective {
 //!             fov: Deg(45.0),
 //!             aspect_ratio: 16.0 / 9.0,
 //!             near: 0.1,
 //!             far: 100.0,
 //!         },
-//!     };
+//!     );
 //!
 //!     // Get the view and projection matrices
 //!     let view_matrix = camera.view_matrix();
 //!     let projection_matrix = camera.projection_matrix();
+//!
+//!     // Move the camera to a new position
+//!     camera.move_to(Vector3::new(1.0, 2.0, 3.0));
+//!
+//!     // Change the camera to use orthographic projection
+//!     camera.set_orthographic(-1.0, 1.0, -1.0, 1.0, 0.1, 100.0);
 //! }
 //! ```
 
 use cgmath::*;
 
 /// Represents the type of projection used by the camera.
-///
-/// This enum supports two types of projections:
-/// - **Perspective**: Simulates a realistic view with depth perception.
-/// - **Orthographic**: Simulates a flat, 2D-like view without depth perception.
 pub enum CameraProjection {
     /// Perspective projection with a field of view, aspect ratio, and near/far clipping planes.
     Perspective {
-        /// The field of view in degrees.
-        fov: Deg<f32>,
-        /// The aspect ratio (width / height) of the viewport.
-        aspect_ratio: f32,
-        /// The distance to the near clipping plane.
-        near: f32,
-        /// The distance to the far clipping plane.
-        far: f32,
+        fov: Deg<f32>,     // Field of view in degrees
+        aspect_ratio: f32, // Aspect ratio (width / height)
+        near: f32,         // Near clipping plane
+        far: f32,          // Far clipping plane
     },
     /// Orthographic projection with left, right, bottom, top, and near/far clipping planes.
     Orthographic {
-        /// The left clipping plane.
-        left: f32,
-        /// The right clipping plane.
-        right: f32,
-        /// The bottom clipping plane.
-        bottom: f32,
-        /// The top clipping plane.
-        top: f32,
-        /// The distance to the near clipping plane.
-        near: f32,
-        /// The distance to the far clipping plane.
-        far: f32,
+        left: f32,   // Left clipping plane
+        right: f32,  // Right clipping plane
+        bottom: f32, // Bottom clipping plane
+        top: f32,    // Top clipping plane
+        near: f32,   // Near clipping plane
+        far: f32,    // Far clipping plane
     },
 }
 
 /// Represents a camera in a 3D scene.
-///
-/// The camera defines the view and projection matrices used to render the scene.
 pub struct Camera {
     /// The position of the camera in world space.
     pub position: Vector3<f32>,
@@ -74,14 +64,40 @@ pub struct Camera {
     pub target: Vector3<f32>,
     /// The up direction of the camera.
     pub up: Vector3<f32>,
-    /// The projection type and parameters for the camera.
+    /// The projection type (Perspective or Orthographic).
     pub projection: CameraProjection,
 }
 
 impl Camera {
+    /// Creates a new camera with the given position, target, up direction, and projection.
+    ///
+    /// # Arguments
+    ///
+    /// * `position` - The position of the camera in world space.
+    /// * `target` - The target point the camera is looking at.
+    /// * `up` - The up direction of the camera.
+    /// * `projection` - The projection type (Perspective or Orthographic).
+    ///
+    /// # Returns
+    ///
+    /// A new `Camera` instance.
+    pub fn new(
+        position: Vector3<f32>,
+        target: Vector3<f32>,
+        up: Vector3<f32>,
+        projection: CameraProjection,
+    ) -> Self {
+        Self {
+            position,
+            target,
+            up,
+            projection,
+        }
+    }
+
     /// Computes the view matrix for the camera.
     ///
-    /// The view matrix transforms world coordinates into camera (eye) coordinates.
+    /// The view matrix transforms world coordinates into camera coordinates.
     ///
     /// # Returns
     ///
@@ -96,7 +112,7 @@ impl Camera {
 
     /// Computes the projection matrix for the camera.
     ///
-    /// The projection matrix transforms camera coordinates into clip coordinates.
+    /// The projection matrix transforms camera coordinates into clip space.
     ///
     /// # Returns
     ///
@@ -124,5 +140,69 @@ impl Camera {
                 far,
             } => ortho(*left, *right, *bottom, *top, *near, *far),
         }
+    }
+
+    /// Moves the camera to a new position.
+    ///
+    /// # Arguments
+    ///
+    /// * `position` - The new position of the camera.
+    pub fn move_to(&mut self, position: Vector3<f32>) {
+        self.position = position;
+    }
+
+    /// Makes the camera look at a new target point.
+    ///
+    /// # Arguments
+    ///
+    /// * `target` - The new target point.
+    pub fn look_at(&mut self, target: Vector3<f32>) {
+        self.target = target;
+    }
+
+    /// Sets the camera to use orthographic projection.
+    ///
+    /// # Arguments
+    ///
+    /// * `left` - The left clipping plane.
+    /// * `right` - The right clipping plane.
+    /// * `bottom` - The bottom clipping plane.
+    /// * `top` - The top clipping plane.
+    /// * `near` - The near clipping plane.
+    /// * `far` - The far clipping plane.
+    pub fn set_orthographic(
+        &mut self,
+        left: f32,
+        right: f32,
+        bottom: f32,
+        top: f32,
+        near: f32,
+        far: f32,
+    ) {
+        self.projection = CameraProjection::Orthographic {
+            left,
+            right,
+            bottom,
+            top,
+            near,
+            far,
+        };
+    }
+
+    /// Sets the camera to use perspective projection.
+    ///
+    /// # Arguments
+    ///
+    /// * `fov` - The field of view in degrees.
+    /// * `aspect_ratio` - The aspect ratio (width / height).
+    /// * `near` - The near clipping plane.
+    /// * `far` - The far clipping plane.
+    pub fn set_perspective(&mut self, fov: Deg<f32>, aspect_ratio: f32, near: f32, far: f32) {
+        self.projection = CameraProjection::Perspective {
+            fov,
+            aspect_ratio,
+            near,
+            far,
+        };
     }
 }
