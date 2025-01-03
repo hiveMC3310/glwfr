@@ -10,13 +10,11 @@
 //! - Reset the input state.
 //!
 //! ## Usage
-//! To use this module, call `process_event` with `glfw::WindowEvent` to update the input state.
-//! Then, use the provided functions to query the state of keys, mouse buttons, and other input data.
+//! Just import the module and use the provided functions to handle input.
 //!
 //! ## Example
 //! ```rust
 //! use glwfr::input::{self, Key, MouseButton};
-//! use glfw::WindowEvent;
 //!
 //! fn handle_input(event: &WindowEvent) {
 //!     input::process_event(event);

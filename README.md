@@ -7,10 +7,11 @@
 
 ## Features
 
-- Window creation and management.
-- Texture loading and rendering.
-- Shader program compilation and linking.
-- Input handling (keyboard and mouse).
+- Upgrade Errors
+- Scene
+- Scene Object
+- Camera
+- Light
 
 ## Usage
 
@@ -18,5 +19,5 @@ Add `glwfr` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-glwfr = "0.3.0"
+glwfr = "0.3.1"
 ```
