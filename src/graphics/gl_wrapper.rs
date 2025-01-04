@@ -34,6 +34,7 @@ use std::os::raw::*;
 
 pub struct Vao {
     id: gl::types::GLuint,
+    index_count: Option<usize>,
 }
 
 impl Vao {
@@ -59,7 +60,32 @@ impl Vao {
                 gl::INVALID_OPERATION,
             ));
         }
-        Ok(Self { id })
+        Ok(Self {
+            id,
+            index_count: None,
+        })
+    }
+
+    /// Set the index count for the vertex array object (VAO).
+    ///
+    /// # Parameters
+    ///
+    /// * `count` - The number of indices to use for drawing the VAO.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the index count has already been set for this VAO.
+    pub fn set_index_count(&mut self, count: usize) {
+        self.index_count = Some(count);
+    }
+
+    /// Returns the index count for the vertex array object (VAO).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the index count has not been set for this VAO using `set_index_count`.
+    pub fn index_count(&self) -> usize {
+        self.index_count.expect("Index count not set for VAO")
     }
 
     /// Bind the Vertex Array Object (VAO).
@@ -82,6 +108,33 @@ impl Vao {
     /// This function is a wrapper around `glBindVertexArray(0)`.
     /// It unbinds the VAO from the current OpenGL context.
     pub fn unbind(&self) {
+        unsafe {
+            gl::BindVertexArray(0);
+        }
+    }
+
+    /// Bind the Vertex Array Object (VAO) at the specified index.
+    ///
+    /// # Arguments
+    ///
+    /// * `index` - The index to bind the VAO to.
+    ///
+    /// # OpenGL Functions
+    ///
+    /// This function is a wrapper around `glBindVertexArray`.
+    pub fn bind_at_index(&self, index: u32) {
+        unsafe {
+            gl::BindVertexArray(self.id);
+            gl::BindVertexBuffer(index, self.id, 0, 0);
+        }
+    }
+
+    /// Unbind all Vertex Array Objects (VAOs).
+    ///
+    /// # OpenGL Functions
+    ///
+    /// This function is a wrapper around `glBindVertexArray(0)`.
+    pub fn unbind_all() {
         unsafe {
             gl::BindVertexArray(0);
         }
@@ -209,6 +262,27 @@ impl BufferObject {
                 &data[0] as *const u32 as *const c_void,
                 self.usage,
             )
+        }
+    }
+
+    /// Update the data in the buffer object.
+    ///
+    /// # Arguments
+    ///
+    /// * `offset` - The offset in bytes from the start of the buffer.
+    /// * `data` - The data to store in the buffer.
+    ///
+    /// # OpenGL Functions
+    ///
+    /// This function is a wrapper around `glBufferSubData`.
+    pub fn update_data<T>(&self, offset: usize, data: &[T]) {
+        unsafe {
+            gl::BufferSubData(
+                self.r#type,
+                offset as isize,
+                (data.len() * mem::size_of::<T>()) as isize,
+                data.as_ptr() as *const c_void,
+            );
         }
     }
 }
@@ -460,6 +534,35 @@ impl ShaderProgram {
         }
     }
 
+    /// Create a uniform block and bind it to the specified binding point.
+    ///
+    /// # Arguments
+    ///
+    /// * `block_name` - The name of the uniform block in the shader.
+    /// * `binding_point` - The binding point to bind the uniform block to.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing `()` if successful, or an error of type `Errors::OpenGlError` otherwise.
+    pub fn create_uniform_block(&self, block_name: &str, binding_point: u32) -> Result<(), Errors> {
+        let c_name = CString::new(block_name)
+            .map_err(|e| Errors::OpenGlError(e.to_string(), gl::INVALID_VALUE))?;
+
+        let block_index = unsafe { gl::GetUniformBlockIndex(self.program_handle, c_name.as_ptr()) };
+        if block_index == gl::INVALID_INDEX {
+            return Err(Errors::OpenGlError(
+                format!("Uniform block '{}' not found", block_name),
+                gl::INVALID_VALUE,
+            ));
+        }
+
+        unsafe {
+            gl::UniformBlockBinding(self.program_handle, block_index, binding_point);
+        }
+
+        Ok(())
+    }
+
     /// Set the value of a uniform variable of type `f32`.
     ///
     /// # OpenGL Functions
@@ -480,6 +583,30 @@ impl ShaderProgram {
         let location = self.get_uniform_location(name)?;
         unsafe {
             gl::Uniform1f(location, value);
+        }
+        Ok(())
+    }
+
+    /// Set the value of a uniform variable of type `i32`.
+    ///
+    /// # OpenGL Functions
+    ///
+    /// This function is a wrapper around `glUniform1f(location, value)`.
+    /// It sets the value of a uniform variable of type `i32`.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The name of the uniform variable to set.
+    /// * `value` - The value to set the uniform variable to.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing a value of type `()` if successful, or an error of type
+    /// `Errors::OpenGlError` if there is an error setting the uniform variable.
+    pub fn set_uniform_1i(&mut self, name: &str, value: i32) -> Result<(), Errors> {
+        let location = self.get_uniform_location(name)?;
+        unsafe {
+            gl::Uniform1i(location, value);
         }
         Ok(())
     }
@@ -611,6 +738,129 @@ impl Ebo {
                 indices.as_ptr() as *const c_void,
                 gl::STATIC_DRAW,
             );
+        }
+    }
+
+    /// Update the indices in the Element Buffer Object (EBO).
+    ///
+    /// # Arguments
+    ///
+    /// * `offset` - The offset in bytes from the start of the buffer.
+    /// * `indices` - The indices to store in the buffer.
+    ///
+    /// # OpenGL Functions
+    ///
+    /// This function is a wrapper around `glBufferSubData`.
+    pub fn update_indices(&self, offset: usize, indices: &[u32]) {
+        unsafe {
+            gl::BufferSubData(
+                gl::ELEMENT_ARRAY_BUFFER,
+                offset as isize,
+                (indices.len() * mem::size_of::<u32>()) as isize,
+                indices.as_ptr() as *const c_void,
+            );
+        }
+    }
+}
+
+pub struct UniformBuffer {
+    id: GLuint,
+    binding_point: u32,
+}
+
+impl UniformBuffer {
+    /// Create a new uniform buffer object (UBO).
+    ///
+    /// # Arguments
+    ///
+    /// * `binding_point` - The binding point to bind the UBO to.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing a `UniformBuffer` instance if successful, or an error of type `Errors::OpenGlError` otherwise.
+    pub fn new(binding_point: u32) -> Result<Self, Errors> {
+        let mut id = 0;
+        unsafe {
+            gl::GenBuffers(1, &mut id);
+        }
+        if id == 0 {
+            return Err(Errors::OpenGlError(
+                "Failed to generate uniform buffer".to_string(),
+                gl::INVALID_OPERATION,
+            ));
+        }
+
+        Ok(Self { id, binding_point })
+    }
+
+    /// Bind the uniform buffer to its binding point.
+    ///
+    /// # OpenGL Functions
+    ///
+    /// This function is a wrapper around `glBindBufferBase`.
+    pub fn bind(&self) {
+        unsafe {
+            gl::BindBufferBase(gl::UNIFORM_BUFFER, self.binding_point, self.id);
+        }
+    }
+
+    /// Unbind the uniform buffer.
+    ///
+    /// # OpenGL Functions
+    ///
+    /// This function is a wrapper around `glBindBuffer(gl::UNIFORM_BUFFER, 0)`.
+    pub fn unbind(&self) {
+        unsafe {
+            gl::BindBuffer(gl::UNIFORM_BUFFER, 0);
+        }
+    }
+
+    /// Store data in the uniform buffer.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The data to store in the buffer.
+    ///
+    /// # OpenGL Functions
+    ///
+    /// This function is a wrapper around `glBufferData`.
+    pub fn store_data<T>(&self, data: &[T]) {
+        unsafe {
+            gl::BufferData(
+                gl::UNIFORM_BUFFER,
+                (data.len() * mem::size_of::<T>()) as isize,
+                data.as_ptr() as *const c_void,
+                gl::STATIC_DRAW,
+            );
+        }
+    }
+
+    /// Update data in the uniform buffer.
+    ///
+    /// # Arguments
+    ///
+    /// * `offset` - The offset in bytes from the start of the buffer.
+    /// * `data` - The data to store in the buffer.
+    ///
+    /// # OpenGL Functions
+    ///
+    /// This function is a wrapper around `glBufferSubData`.
+    pub fn update_data<T>(&self, offset: usize, data: &[T]) {
+        unsafe {
+            gl::BufferSubData(
+                gl::UNIFORM_BUFFER,
+                offset as isize,
+                (data.len() * mem::size_of::<T>()) as isize,
+                data.as_ptr() as *const c_void,
+            );
+        }
+    }
+}
+
+impl Drop for UniformBuffer {
+    fn drop(&mut self) {
+        unsafe {
+            gl::DeleteBuffers(1, &self.id);
         }
     }
 }
