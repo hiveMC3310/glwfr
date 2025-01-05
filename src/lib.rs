@@ -14,7 +14,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! glwfr = "0.4.0"
+//! glwfr = "0.4.1"
 //! ```
 //!
 //! ## Example
