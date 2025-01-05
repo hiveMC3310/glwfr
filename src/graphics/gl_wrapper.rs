@@ -10,6 +10,7 @@
 //! fn main() -> Result<(), glwfr::custom_errors::Errors> {
 //!     let vao = Vao::new()?;
 //!     vao.bind();
+//!     vao.set_index_count(6);
 //!
 //!     let vbo = BufferObject::new(gl::ARRAY_BUFFER, gl::STATIC_DRAW)?;
 //!     vbo.bind();

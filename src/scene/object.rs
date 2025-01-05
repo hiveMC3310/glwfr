@@ -15,10 +15,11 @@
 //! let mut object = Object::new(vao, shader_program);
 //!
 //! // Set the object's transform
-//! object.set_transform(Matrix4::from_translation([1.0, 2.0, 3.0].into()));
+//! object.transform.set_position(Vector3::new(0.0, 0.0, 0.0));
 //! ```
 
 use crate::graphics::gl_wrapper::{ShaderProgram, Vao};
+use crate::scene::Transform;
 use cgmath::*;
 
 /// Represents an object in a 3D scene.
@@ -26,7 +27,7 @@ pub struct Object {
     /// The mesh of the object, represented as a VAO.
     mesh: Vao,
     /// The transformation matrix of the object.
-    pub transform: Matrix4<f32>,
+    pub transform: Transform,
     /// The shader program used to render the object.
     pub shader_program: ShaderProgram,
 }
@@ -47,18 +48,9 @@ impl Object {
     pub fn new(mesh: Vao, shader_program: ShaderProgram) -> Self {
         Self {
             mesh,
-            transform: Matrix4::identity(),
+            transform: Transform::new(),
             shader_program,
         }
-    }
-
-    /// Sets the object's transformation matrix.
-    ///
-    /// # Arguments
-    ///
-    /// * `transform` - The transformation matrix to set.
-    pub fn set_transform(&mut self, transform: Matrix4<f32>) {
-        self.transform = transform;
     }
 
     /// Renders the object using the given view and projection matrices.
@@ -75,7 +67,7 @@ impl Object {
     pub fn render(&mut self, view_matrix: Matrix4<f32>, projection_matrix: Matrix4<f32>) {
         self.shader_program.bind();
         self.shader_program
-            .set_uniform_matrix4fv("model", &self.transform)
+            .set_uniform_matrix4fv("model", &self.transform.matrix())
             .unwrap();
         self.shader_program
             .set_uniform_matrix4fv("view", &view_matrix)

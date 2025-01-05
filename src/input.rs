@@ -34,33 +34,15 @@
 
 use glfw::{Action, WindowEvent};
 pub use glfw::{Key, MouseButton};
-use std::collections::HashSet;
-use std::sync::{Mutex, OnceLock};
+use lazy_static::lazy_static;
+use std::sync::Mutex;
 
 // Static variables to store input state
-static KEYS_PRESSED: OnceLock<Mutex<HashSet<Key>>> = OnceLock::new();
-static MOUSE_BUTTONS_PRESSED: OnceLock<Mutex<HashSet<MouseButton>>> = OnceLock::new();
-static MOUSE_POSITION: OnceLock<Mutex<(f64, f64)>> = OnceLock::new();
-static MOUSE_SCROLL: OnceLock<Mutex<(f64, f64)>> = OnceLock::new();
-
-/// Initializes the input state if it hasn't been initialized yet.
-fn ensure_init() {
-    static INIT: OnceLock<()> = OnceLock::new();
-    INIT.get_or_init(|| {
-        KEYS_PRESSED.get_or_init(|| Mutex::new(HashSet::new()));
-        MOUSE_BUTTONS_PRESSED.get_or_init(|| Mutex::new(HashSet::new()));
-        MOUSE_POSITION.get_or_init(|| Mutex::new((0.0, 0.0)));
-        MOUSE_SCROLL.get_or_init(|| Mutex::new((0.0, 0.0)));
-    });
-}
-
-/// A helper function to safely access and modify a `Mutex`.
-fn with_lock<T, F, R>(lock: &Mutex<T>, f: F) -> R
-where
-    F: FnOnce(&mut T) -> R,
-{
-    let mut guard = lock.lock().unwrap();
-    f(&mut guard)
+lazy_static! {
+    static ref KEYS_PRESSED: Mutex<[bool; 350]> = Mutex::new([false; 350]); // 350 - примерное количество клавиш
+    static ref MOUSE_BUTTONS_PRESSED: Mutex<[bool; 8]> = Mutex::new([false; 8]); // 8 кнопок мыши
+    static ref MOUSE_POSITION: Mutex<(f64, f64)> = Mutex::new((0.0, 0.0));
+    static ref MOUSE_SCROLL: Mutex<(f64, f64)> = Mutex::new((0.0, 0.0));
 }
 
 /// Processes a `glfw::WindowEvent` to update the input state.
@@ -77,32 +59,24 @@ where
 /// }
 /// ```
 pub fn process_event(event: &WindowEvent) {
-    ensure_init();
-
     match event {
         WindowEvent::Key(key, _, Action::Press, _) => {
-            with_lock(KEYS_PRESSED.get().unwrap(), |keys| keys.insert(*key));
+            KEYS_PRESSED.lock().unwrap()[*key as usize] = true;
         }
         WindowEvent::Key(key, _, Action::Release, _) => {
-            with_lock(KEYS_PRESSED.get().unwrap(), |keys| keys.remove(key));
+            KEYS_PRESSED.lock().unwrap()[*key as usize] = false;
         }
         WindowEvent::MouseButton(button, Action::Press, _) => {
-            with_lock(MOUSE_BUTTONS_PRESSED.get().unwrap(), |buttons| {
-                buttons.insert(*button)
-            });
+            MOUSE_BUTTONS_PRESSED.lock().unwrap()[*button as usize] = true;
         }
         WindowEvent::MouseButton(button, Action::Release, _) => {
-            with_lock(MOUSE_BUTTONS_PRESSED.get().unwrap(), |buttons| {
-                buttons.remove(button)
-            });
+            MOUSE_BUTTONS_PRESSED.lock().unwrap()[*button as usize] = false;
         }
         WindowEvent::CursorPos(x, y) => {
-            with_lock(MOUSE_POSITION.get().unwrap(), |pos| *pos = (*x, *y));
+            *MOUSE_POSITION.lock().unwrap() = (*x, *y);
         }
         WindowEvent::Scroll(xoffset, yoffset) => {
-            with_lock(MOUSE_SCROLL.get().unwrap(), |scroll| {
-                *scroll = (*xoffset, *yoffset)
-            });
+            *MOUSE_SCROLL.lock().unwrap() = (*xoffset, *yoffset);
         }
         _ => {}
     }
@@ -125,8 +99,7 @@ pub fn process_event(event: &WindowEvent) {
 /// }
 /// ```
 pub fn is_key_pressed(key: Key) -> bool {
-    ensure_init();
-    with_lock(KEYS_PRESSED.get().unwrap(), |keys| keys.contains(&key))
+    KEYS_PRESSED.lock().unwrap()[key as usize]
 }
 
 /// Checks if a specific mouse button is currently pressed.
@@ -146,10 +119,7 @@ pub fn is_key_pressed(key: Key) -> bool {
 /// }
 /// ```
 pub fn is_mouse_button_pressed(button: MouseButton) -> bool {
-    ensure_init();
-    with_lock(MOUSE_BUTTONS_PRESSED.get().unwrap(), |buttons| {
-        buttons.contains(&button)
-    })
+    MOUSE_BUTTONS_PRESSED.lock().unwrap()[button as usize]
 }
 
 /// Returns the current mouse position.
@@ -165,8 +135,7 @@ pub fn is_mouse_button_pressed(button: MouseButton) -> bool {
 /// println!("Mouse position: ({}, {})", x, y);
 /// ```
 pub fn get_mouse_position() -> (f64, f64) {
-    ensure_init();
-    with_lock(MOUSE_POSITION.get().unwrap(), |pos| *pos)
+    *MOUSE_POSITION.lock().unwrap()
 }
 
 /// Returns the current mouse scroll offset.
@@ -182,8 +151,7 @@ pub fn get_mouse_position() -> (f64, f64) {
 /// println!("Scroll offset: ({}, {})", x, y);
 /// ```
 pub fn get_mouse_scroll() -> (f64, f64) {
-    ensure_init();
-    with_lock(MOUSE_SCROLL.get().unwrap(), |scroll| *scroll)
+    *MOUSE_SCROLL.lock().unwrap()
 }
 
 /// Resets the input state, clearing all pressed keys, mouse buttons, and resetting mouse position and scroll.
@@ -195,11 +163,8 @@ pub fn get_mouse_scroll() -> (f64, f64) {
 /// input::reset_state();
 /// ```
 pub fn reset_state() {
-    ensure_init();
-    with_lock(KEYS_PRESSED.get().unwrap(), |keys| keys.clear());
-    with_lock(MOUSE_BUTTONS_PRESSED.get().unwrap(), |buttons| {
-        buttons.clear()
-    });
-    with_lock(MOUSE_POSITION.get().unwrap(), |pos| *pos = (0.0, 0.0));
-    with_lock(MOUSE_SCROLL.get().unwrap(), |scroll| *scroll = (0.0, 0.0));
+    KEYS_PRESSED.lock().unwrap().fill(false);
+    MOUSE_BUTTONS_PRESSED.lock().unwrap().fill(false);
+    *MOUSE_POSITION.lock().unwrap() = (0.0, 0.0);
+    *MOUSE_SCROLL.lock().unwrap() = (0.0, 0.0);
 }

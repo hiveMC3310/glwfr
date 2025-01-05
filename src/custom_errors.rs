@@ -1,22 +1,23 @@
 //! # Custom Errors Module
 //!
-//! This module defines a set of custom error types for handling various failures in the library.
-//! These errors are designed to provide clear and informative messages for debugging and error handling.
+//! This module defines custom error types for handling various failures in the library.
 //!
 //! ## Error Types
-//! - `GlfwInitializationError`: Failed to initialize GLFW.
-//! - `WindowCreationError`: Failed to create a window.
-//! - `TextureLoadError`: Failed to load a texture.
-//! - `ShaderCompilationError`: Failed to compile a shader.
-//! - `ShaderLinkError`: Failed to link a shader program.
-//! - `FileLoadError`: Failed to load a file.
-//! - `OpenGlError`: An OpenGL-related error occurred.
+//! - **GlfwInitializationError**: Failed to initialize GLFW.
+//! - **WindowCreationError**: Failed to create a window.
+//! - **TextureLoadError**: Failed to load a texture.
+//! - **ShaderCompilationError**: Failed to compile a shader.
+//! - **ShaderLinkError**: Failed to link a shader program.
+//! - **FileLoadError**: Failed to load a file.
+//! - **OpenGlError**: OpenGL-related errors.
+//! - **AudioInitializationError**: Failed to initialize the audio system.
+//! - **SoundLoadError**: Failed to load a sound file.
+//! - **SoundPlayError**: Failed to play a sound.
+//! - **SoundNotFoundError**: Sound not found in the audio system.
+//! - **AudioDecodeError**: Failed to decode an audio file.
+//! - **AudioVolumeError**: Failed to set audio volume.
 //!
-//! ## Usage
-//! These errors can be returned by functions in the library to indicate specific failure conditions.
-//! They implement the `std::error::Error` trait, making them compatible with Rust's error handling ecosystem.
-//!
-//! ### Example: Handling Errors
+//! ## Example
 //! ```rust
 //! use glwfr::custom_errors::Errors;
 //!
@@ -24,15 +25,8 @@
 //!     if path.is_empty() {
 //!         return Err(Errors::TextureLoadError("Empty path provided".to_string()));
 //!     }
-//!     // Simulate texture loading logic
+//!     // Load texture logic...
 //!     Ok(())
-//! }
-//!
-//! fn main() {
-//!     match load_texture("") {
-//!         Ok(_) => println!("Texture loaded successfully!"),
-//!         Err(e) => eprintln!("Error: {}", e),
-//!     }
 //! }
 //! ```
 
@@ -61,11 +55,53 @@ pub enum Errors {
 
     #[error("OpenGL error (code: {1}): {0}")]
     OpenGlError(String, u32),
+
+    #[error("Failed to initialize audio system: {0}")]
+    AudioInitializationError(String),
+
+    #[error("Failed to load sound file: {0}")]
+    SoundLoadError(String),
+
+    #[error("Failed to play sound: {0}")]
+    SoundPlayError(String),
+
+    #[error("Sound not found: {0}")]
+    SoundNotFoundError(String),
+
+    #[error("Failed to decode audio file: {0}")]
+    AudioDecodeError(String),
+
+    #[error("Failed to set audio volume: {0}")]
+    AudioVolumeError(String),
 }
 
 impl From<std::io::Error> for Errors {
     fn from(err: std::io::Error) -> Self {
         Errors::FileLoadError(err.to_string())
+    }
+}
+
+impl From<rodio::decoder::DecoderError> for Errors {
+    fn from(err: rodio::decoder::DecoderError) -> Self {
+        Errors::AudioDecodeError(err.to_string())
+    }
+}
+
+impl From<rodio::PlayError> for Errors {
+    fn from(err: rodio::PlayError) -> Self {
+        Errors::SoundPlayError(err.to_string())
+    }
+}
+
+impl From<rodio::StreamError> for Errors {
+    fn from(err: rodio::StreamError) -> Self {
+        Errors::AudioInitializationError(err.to_string())
+    }
+}
+
+impl From<rodio::DevicesError> for Errors {
+    fn from(err: rodio::DevicesError) -> Self {
+        Errors::AudioInitializationError(err.to_string())
     }
 }
 

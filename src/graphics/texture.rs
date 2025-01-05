@@ -133,13 +133,20 @@ impl Texture {
 
         unsafe {
             gl::BindTexture(gl::TEXTURE_2D, self.id);
-            gl::TexImage2D(
+            gl::TexStorage2D(
                 gl::TEXTURE_2D,
-                0,
-                gl::RGBA as i32,
+                1, // Уровни мипмапов
+                gl::RGBA8,
                 width as i32,
                 height as i32,
+            );
+            gl::TexSubImage2D(
+                gl::TEXTURE_2D,
                 0,
+                0,
+                0,
+                width as i32,
+                height as i32,
                 gl::RGBA,
                 gl::UNSIGNED_BYTE,
                 img.as_ptr() as *const _,

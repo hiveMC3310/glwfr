@@ -7,8 +7,9 @@
 
 ## Features
 
-- Remade scene system
-- Add uniform-block to ShaderProgram
+- Add Audio System
+- Add Transform structure
+- Some little optimization with Input system
 
 ## Usage
 
@@ -16,7 +17,7 @@ Add `glwfr` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-glwfr = "0.3.3"
+glwfr = "0.4.0"
 ```
 
 ### Example
@@ -28,6 +29,7 @@ use glwfr::{
     graphics::{gl_wrapper::*, window::Window},
     input::{self, Key},
     scene::*,
+    audio::*
 };
 use std::time::Instant;
 
@@ -84,6 +86,10 @@ fn main() -> Result<(), glwfr::custom_errors::Errors> {
     let mut window = Window::new(800, 600, "Rotating Cube")?;
     window.init_gl()?;
     window.enable_depth_test();
+
+    // Load audio
+    let mut audio_system = AudioSystem::new()?;
+    audio_system.load_sound("explosion", "explosion.mp3")?;
 
     // Create shader program
     let shader_program = ShaderProgram::new("shaders/vertex.glsl", "shaders/fragment.glsl")?;
@@ -188,10 +194,16 @@ fn main() -> Result<(), glwfr::custom_errors::Errors> {
         // Cube control
         if let Some(cube) = scene.get_mut_object(0) {
             if input::is_key_pressed(Key::Right) {
-                cube.transform = cube.transform * Matrix4::from_angle_y(Deg(50.0 * delta_time));
+                cube.transform
+                    .rotate_around_axis(Vector3::new(0.0, 1.0, 0.0), Deg(50.0 * delta_time));
+
+                // Play audio
+                audio_system.play_sound_once("explosion")?;
+                audio_system.set_volume("explosion", 0.5)?;
             }
             if input::is_key_pressed(Key::Left) {
-                cube.transform = cube.transform * Matrix4::from_angle_y(Deg(-50.0 * delta_time));
+                cube.transform
+                    .rotate_around_axis(Vector3::new(0.0, 1.0, 0.0), Deg(-50.0 * delta_time));
             }
 
             // Set uniforms
