@@ -7,9 +7,8 @@
 
 ## Features
 
-- Add Audio System
-- Add Transform structure
-- Some little optimization with Input system
+- Fix bags with Audio System
+- Split the gl_wrapper module into components
 
 ## Usage
 
@@ -17,7 +16,7 @@ Add `glwfr` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-glwfr = "0.4.1"
+glwfr = "0.4.2"
 ```
 
 ### Example
@@ -196,10 +195,6 @@ fn main() -> Result<(), glwfr::custom_errors::Errors> {
             if input::is_key_pressed(Key::Right) {
                 cube.transform
                     .rotate_around_axis(Vector3::new(0.0, 1.0, 0.0), Deg(50.0 * delta_time));
-
-                // Play audio
-                audio_system.play_sound_once("explosion")?;
-                audio_system.set_volume("explosion", 0.5)?;
             }
             if input::is_key_pressed(Key::Left) {
                 cube.transform
@@ -219,6 +214,14 @@ fn main() -> Result<(), glwfr::custom_errors::Errors> {
                 .set_uniform_3f("lightColor", 1.0, 1.0, 1.0)?;
             cube.shader_program
                 .set_uniform_3f("objectColor", 1.0, 0.0, 0.0)?;
+        }
+
+        // Play audio
+        if input::is_key_pressed(Key::Space) {
+            if audio_system.is_playing("explosion")? {
+                audio_system.play_sound_once("explosion")?;
+                audio_system.set_volume("explosion", 0.5)?;
+            }
         }
 
         // Clear

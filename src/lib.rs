@@ -14,7 +14,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! glwfr = "0.4.1"
+//! glwfr = "0.4.2"
 //! ```
 //!
 //! ## Example
@@ -55,6 +55,7 @@
 //!     Ok(())
 //! }
 //! ```
+//!
 
 pub extern crate cgmath;
 pub extern crate gl;
